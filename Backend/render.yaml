@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-devguide-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: ""
+    startCommand: "python backend/main.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
