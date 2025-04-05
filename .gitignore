@@ -1,0 +1,14 @@
+# Node (frontend)
+frontend/node_modules/
+frontend/dist/
+
+# Python (backend)
+backend/__pycache__/
+backend/venv/
+*.pyc
+
+# OS
+.DS_Store
+
+# Streamlit
+backend/.streamlit/*.toml
