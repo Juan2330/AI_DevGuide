@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:3000/predict";
+const API_URL = import.meta.env.VITE_API_URL || "https://ai-devguide-2.onrender.com/predict";
 
 export const sendProjectDescription = async (descripcion) => {
   try {

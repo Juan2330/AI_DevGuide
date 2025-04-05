@@ -6,7 +6,14 @@ from flask_cors import CORS
 from datetime import datetime
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={
+  r"/predict": {
+    "origins": [
+      "https://tudominio-frontend.com",  # Reemplaza con tu URL de frontend
+      "http://localhost:5173"  # Para desarrollo local
+    ]
+  }
+})
 
 def validate_description(descripcion):
     """Valida la descripción del proyecto"""
