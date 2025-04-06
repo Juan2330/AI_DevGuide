@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app, resources={
   r"/predict": {
     "origins": [
-      "https://tudominio-frontend.com",  # Reemplaza con tu URL de frontend
+      "https://ai-devguide-frontend.onrender.com",  # Reemplaza con tu URL de frontend
       "http://localhost:5173"  # Para desarrollo local
     ]
   }
