@@ -21,6 +21,10 @@ def validate_description(descripcion):
         return False
     return len(descripcion.strip()) >= 20  # Mínimo 20 caracteres
 
+@app.route('/')
+def home():
+    return "AI DevGuide API está activa", 200
+
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
@@ -30,9 +34,9 @@ def predict():
                 "error": "Formato inválido",
                 "message": "El request debe ser JSON"
             }), 400
-            
+
         data = request.get_json()
-        
+
         # Validación mejorada
         if not data or 'descripcion' not in data:
             return jsonify({
@@ -40,7 +44,7 @@ def predict():
                 "error": "Campo faltante",
                 "message": "El campo 'descripcion' es requerido"
             }), 400
-            
+
         descripcion = data['descripcion'].strip()
         if not validate_description(descripcion):
             return jsonify({
@@ -55,7 +59,7 @@ def predict():
             recomendacion = modelo_experto(descripcion)
             if "error" not in recomendacion:
                 break
-        
+
         if "error" in recomendacion:
             return jsonify({
                 "success": False,
@@ -63,7 +67,7 @@ def predict():
                 "message": "No se pudo generar recomendaciones técnicas",
                 "details": recomendacion
             }), 500
-        
+
         # Paso 2: Generar informe detallado
         informe = modelo_respuesta(descripcion, recomendacion)
         if "error" in informe:
@@ -73,7 +77,7 @@ def predict():
                 "message": "No se pudo generar el informe técnico",
                 "details": informe
             }), 500
-        
+
         # Paso 3: Generar código de ejemplo
         codigo_ejemplo = modelo_codigo(descripcion, recomendacion)
 
@@ -122,7 +126,7 @@ def predict():
                 "report": informe.get("advertencia") if isinstance(informe, dict) else None
             }
         }
-        
+
         return jsonify(response)
 
     except Exception as e:
@@ -132,6 +136,6 @@ def predict():
             "message": "Error interno del servidor",
             "details": "Ocurrió un error inesperado"
         }), 500
-    
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
