@@ -1,3 +1,4 @@
 streamlit
 flask
 flask-cors
+ollama
