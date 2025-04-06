@@ -2,3 +2,4 @@ streamlit
 flask
 flask-cors
 ollama
+llama3:latest
