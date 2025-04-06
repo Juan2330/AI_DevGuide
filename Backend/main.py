@@ -4,13 +4,12 @@ from modelo import modelo_experto, modelo_respuesta, modelo_codigo
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
-import os
 
 app = Flask(__name__)
 CORS(app, resources={
   r"/predict": {
     "origins": [
-      "https://ai-devguide-frontend.onrender.com",  # Reemplaza con tu URL de frontend
+      "https://ai-devguide.onrender.com",  # Reemplaza con tu URL de frontend
       "http://localhost:5173"  # Para desarrollo local
     ]
   }
@@ -134,5 +133,5 @@ def predict():
             "details": "Ocurrió un error inesperado"
         }), 500
     
-port = int(os.environ.get("PORT", 10000))
-app.run(host="0.0.0.0", port=port)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
