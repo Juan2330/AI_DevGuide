@@ -13,7 +13,7 @@ class Config:
     PORT = int(os.getenv("PORT", 10000))
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
     ALLOWED_ORIGINS = json.loads(os.getenv("ALLOWED_ORIGINS", 
-        '["http://localhost:5173", "http://127.0.0.1:5173", "https://ai-devguide.onrender.com"]'))
+        '["http://localhost:5173", "http://127.0.0.1:5173", "https://ai-devguide-huggin-1.onrender.com"]'))
     
     # Configuración de caché
     CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
