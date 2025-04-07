@@ -1,29 +1,48 @@
-import streamlit as st
 import json
-from modelo import modelo_experto, modelo_respuesta, modelo_codigo
+from datetime import datetime
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime
+from modelo import modelo_experto, modelo_respuesta, modelo_codigo
+from utils.monitoring import monitor
+from config import Config
 
 app = Flask(__name__)
 CORS(app, resources={
-  r"/predict": {
-    "origins": [
-      "https://ai-devguide.onrender.com",  # Reemplaza con tu URL de frontend
-      "http://localhost:5173"  # Para desarrollo local
-    ]
-  }
+    r"/predict": {"origins": Config.ALLOWED_ORIGINS},
+    r"/usage": {"origins": Config.ALLOWED_ORIGINS}
 })
 
 def validate_description(descripcion):
     """Valida la descripción del proyecto"""
     if not descripcion or not isinstance(descripcion, str):
         return False
-    return len(descripcion.strip()) >= 20  # Mínimo 20 caracteres
+    return len(descripcion.strip()) >= 20
 
 @app.route('/')
 def home():
     return "AI DevGuide API está activa", 200
+
+@app.route('/usage')
+def get_usage():
+    if not Config.MONITORING_ENABLED:
+        return jsonify({"error": "Monitoring disabled"}), 403
+        
+    usage_data = monitor.get_usage_stats()
+    hf_quota = monitor.check_hf_quota()
+    
+    response = {
+        "system": {
+            "status": "active",
+            "model": Config.MODEL_NAME,
+            "cache_enabled": Config.CACHE_ENABLED,
+            "monitoring_enabled": Config.MONITORING_ENABLED
+        },
+        "usage": usage_data,
+        "huggingface": hf_quota
+    }
+    
+    return jsonify(response)
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -37,7 +56,6 @@ def predict():
 
         data = request.get_json()
 
-        # Validación mejorada
         if not data or 'descripcion' not in data:
             return jsonify({
                 "success": False,
@@ -55,7 +73,7 @@ def predict():
 
         # Paso 1: Obtener recomendación con reintentos
         recomendacion = None
-        for _ in range(3):  # 3 intentos
+        for _ in range(3):
             recomendacion = modelo_experto(descripcion)
             if "error" not in recomendacion:
                 break
@@ -81,13 +99,13 @@ def predict():
         # Paso 3: Generar código de ejemplo
         codigo_ejemplo = modelo_codigo(descripcion, recomendacion)
 
-        # Construir respuesta mejor estructurada
         response = {
             "success": True,
             "metadata": {
                 "version": "1.0",
-                "model": "llama3:latest",
-                "timestamp": datetime.now().isoformat()
+                "model": Config.MODEL_NAME,
+                "timestamp": datetime.now().isoformat(),
+                "cache_hit": hasattr(recomendacion, "_from_cache")
             },
             "technologies": {
                 "language": {
@@ -130,12 +148,17 @@ def predict():
         return jsonify(response)
 
     except Exception as e:
+        monitor.log_request("/predict", False)
         return jsonify({
             "success": False,
             "error": "server_error",
             "message": "Error interno del servidor",
-            "details": "Ocurrió un error inesperado"
+            "details": str(e)
         }), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    if os.getenv("ENV") == "production":
+        from gunicorn.app.wsgiapp import WSGIApplication
+        WSGIApplication("%(prog)s [OPTIONS] [APP_MODULE]").run()
+    else:
+        app.run(host="0.0.0.0", port=Config.PORT, debug=Config.DEBUG)

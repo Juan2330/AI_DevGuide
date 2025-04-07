@@ -1,7 +1,12 @@
-import ollama
+from config import Config
+from cache.cache_manager import cache
+from utils.monitoring import monitor
+from huggingface_hub import InferenceClient
 import json
 import re
 from html import unescape
+
+client = InferenceClient(model=Config.MODEL_NAME, token=Config.HF_API_TOKEN)
 
 FRAMEWORKS_CONOCIDOS = {
     "Django", "Flask", "FastAPI", "React", "Vue", 
@@ -12,7 +17,6 @@ def limpiar_json(texto):
     """Limpia y valida el JSON generado por el modelo"""
     try:
         texto = unescape(texto.strip())
-        # Extraer JSON entre ```json``` si existe
         json_match = re.search(r'```(?:json)?\n(.*?)\n```', texto, re.DOTALL)
         if json_match:
             texto = json_match.group(1)
@@ -24,55 +28,79 @@ def limpiar_json(texto):
             "original_response": texto[:500] + ("..." if len(texto) > 500 else "")
         }
 
+def generar_respuesta(prompt, system_prompt="", temperature=0.7, cache_key=None):
+    """Función genérica para interactuar con la API con caché"""
+    if cache_key and Config.CACHE_ENABLED:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            monitor.log_request("/predict", True, 0)
+            return cached
+            
+    try:
+        response = client.text_generation(
+            prompt=f"<s>[INST] {system_prompt} {prompt} [/INST]",
+            max_new_tokens=1500,
+            temperature=temperature,
+            return_full_text=False
+        )
+        
+        # Estimación de tokens (aproximadamente 1.33 tokens por palabra)
+        tokens_used = int(len(response.split()) * 1.33)
+        monitor.log_request("/predict", True, tokens_used)
+        
+        if cache_key and Config.CACHE_ENABLED:
+            cache.set(cache_key, response)
+            
+        return response
+    except Exception as e:
+        monitor.log_request("/predict", False)
+        return {"error": str(e)}
+
 def modelo_experto(descripcion):
+    cache_key = f"expert_{descripcion[:100]}"  # Usamos los primeros 100 caracteres para el key
+    
     prompt = f"""
     Como arquitecto de software, genera un JSON con tecnologías esenciales para:
     "{descripcion}"
 
     Estructura requerida:
     {{
-        "lenguaje": "string",        // Solo 1 lenguaje principal
-        "framework": "string",       // Framework principal (no alternativas)
-        "librerias": ["string"],     // 3-4 librerías clave máximo
-        "bases_de_datos": ["string"],// 1-2 bases de datos
-        "frontend": ["string"],      // Tecnologías frontend esenciales
-        "backend": ["string"]        // Tecnologías backend esenciales
+        "lenguaje": "string",
+        "framework": "string",
+        "librerias": ["string"],
+        "bases_de_datos": ["string"],
+        "frontend": ["string"],
+        "backend": ["string"]
     }}
 
     Reglas estrictas:
     1. Solo tecnologías maduras y ampliamente usadas
-    2. No incluir alternativas o opciones secundarias
+    2. No incluir alternativas
     3. Máximo 4 ítems por categoría
     4. Solo responder con JSON válido
     5. No incluir texto fuera del JSON
     """
 
-    try:
-        response = ollama.chat(
-            model="llama3:latest",
-            messages=[{
-                "role": "system",
-                "content": "Eres un arquitecto de software conciso. Solo responde con JSON válido."
-            }, {
-                "role": "user",
-                "content": prompt
-            }],
-            options={"temperature": 0.5}
-        )
-        data = limpiar_json(response['message']['content'])
+    system_prompt = "Eres un arquitecto de software conciso. Solo responde con JSON válido."
+    response = generar_respuesta(prompt, system_prompt, 0.5, cache_key)
+    
+    if isinstance(response, dict) and "error" in response:
+        return response
         
-        # Post-procesamiento para eliminar redundancias
-        if isinstance(data, dict):
-            if "backend" in data and "lenguaje" in data:
-                data["backend"] = [tech for tech in data["backend"] if tech != data["lenguaje"]]
-            if "librerias" in data:
-                data["librerias"] = [lib for lib in data["librerias"] if lib not in FRAMEWORKS_CONOCIDOS]
-        
-        return data
-    except Exception as e:
-        return {"error": "model_error", "message": str(e)}
+    data = limpiar_json(response)
+    
+    # Post-procesamiento
+    if isinstance(data, dict):
+        if "backend" in data and "lenguaje" in data:
+            data["backend"] = [tech for tech in data["backend"] if tech != data["lenguaje"]]
+        if "librerias" in data:
+            data["librerias"] = [lib for lib in data["librerias"] if lib not in FRAMEWORKS_CONOCIDOS]
+    
+    return data
 
 def modelo_respuesta(descripcion, recomendacion):
+    cache_key = f"report_{hash(descripcion + str(recomendacion))}"
+    
     prompt = f"""
     Genera un informe técnico en JSON para:
     Proyecto: "{descripcion}"
@@ -85,22 +113,22 @@ def modelo_respuesta(descripcion, recomendacion):
             "lenguaje": {{
                 "nombre": "string",
                 "descripcion": "string",
-                "justificacion": "string",  // Explicación específica para este proyecto
-                "caracteristicas": ["string"]  // 2-3 características relevantes
+                "justificacion": "string",
+                "caracteristicas": ["string"]
             }},
             "framework": {{
                 "nombre": "string",
                 "descripcion": "string",
                 "justificacion": "string",
-                "casos_uso": ["string"]  // Cómo se usará en este proyecto
+                "casos_uso": ["string"]
             }},
             "librerias": [
                 {{
                     "nombre": "string",
                     "descripcion": "string",
-                    "uso": "string",      // Uso concreto en el proyecto
+                    "uso": "string",
                     "justificacion": "string",
-                    "instalacion": "string"  // Formato: 'npm install nombre'
+                    "instalacion": "string"
                 }}
             ]
         }},
@@ -109,49 +137,37 @@ def modelo_respuesta(descripcion, recomendacion):
             "descripcion": "string",
             "justificacion": "string",
             "instalacion": {{
-                "windows": "string",  // Comando completo
-                "linux": "string",    // Comando completo
-                "macos": "string"     // Comando completo
+                "windows": "string",
+                "linux": "string",
+                "macos": "string"
             }}
         }},
         "arquitectura": {{
-            "diagrama": "string",     // Breve descripción textual
-            "componentes": ["string"] // Componentes principales
+            "diagrama": "string",
+            "componentes": ["string"]
         }},
         "instalacion": {{
-            "requisitos": ["string"], // Requisitos previos
+            "requisitos": ["string"],
             "librerias": {{
-                "comando": "string",  // Ej: 'npm install'
-                "ejemplo": "string"   // Ej: 'npm install express mongoose'
+                "comando": "string",
+                "ejemplo": "string"
             }}
         }},
-        "recomendaciones": ["string"] // 3-4 recomendaciones clave
+        "recomendaciones": ["string"]
     }}
-
-    Instrucciones:
-    1. Explicaciones técnicas específicas para este proyecto
-    2. Comandos de instalación completos y verificados
-    3. Sin información redundante
-    4. Solo JSON válido, sin markdown o texto adicional
     """
 
-    try:
-        response = ollama.chat(
-            model="llama3:latest",
-            messages=[{
-                "role": "system",
-                "content": "Eres un ingeniero senior que genera informes técnicos precisos en JSON."
-            }, {
-                "role": "user",
-                "content": prompt
-            }],
-            options={"temperature": 0.3}
-        )
-        return limpiar_json(response['message']['content'])
-    except Exception as e:
-        return {"error": "report_error", "message": str(e)}
+    system_prompt = "Eres un ingeniero senior que genera informes técnicos precisos en JSON."
+    response = generar_respuesta(prompt, system_prompt, 0.3, cache_key)
+    
+    if isinstance(response, dict) and "error" in response:
+        return response
+        
+    return limpiar_json(response)
 
 def modelo_codigo(descripcion, recomendacion):
+    cache_key = f"code_{hash(descripcion + str(recomendacion))}"
+    
     prompt = f"""
     Genera código de ejemplo para:
     Proyecto: "{descripcion}"
@@ -159,32 +175,19 @@ def modelo_codigo(descripcion, recomendacion):
 
     Requisitos:
     1. Código funcional y bien estructurado
-    2. Incluir:
-       - Configuración inicial
-       - Modelo de datos ejemplo
-       - API REST básica
-       - Componente frontend simple
-    3. Comentarios claros y concisos
+    2. Incluir configuración inicial, modelo de datos, API REST y componente frontend
+    3. Comentarios claros
     4. Sin marcas de código (```)
     5. Solo el código, sin explicaciones
     """
 
-    try:
-        response = ollama.chat(
-            model="llama3:latest",
-            messages=[{
-                "role": "system",
-                "content": "Eres un desarrollador senior que escribe código limpio y documentado."
-            }, {
-                "role": "user",
-                "content": prompt
-            }],
-            options={"temperature": 0.2}
-        )
-        # Limpieza exhaustiva del código
-        code = response['message']['content']
-        code = re.sub(r'^```[a-z]*\n?|\n```$', '', code, flags=re.IGNORECASE)
-        code = re.sub(r'^(Aquí|Here).*?\n', '', code, flags=re.IGNORECASE)
-        return {"codigo": code.strip()}
-    except Exception as e:
-        return {"codigo": f"// Error generando código: {str(e)}", "advertencia": "El código puede estar incompleto"}
+    system_prompt = "Eres un desarrollador senior que escribe código limpio y documentado."
+    response = generar_respuesta(prompt, system_prompt, 0.2, cache_key)
+    
+    if isinstance(response, dict) and "error" in response:
+        return {"codigo": f"// Error: {response['error']}", "advertencia": "Error generando código"}
+    
+    # Limpieza del código
+    code = re.sub(r'^```[a-z]*\n?|\n```$', '', response, flags=re.IGNORECASE)
+    code = re.sub(r'^(Aquí|Here).*?\n', '', code, flags=re.IGNORECASE)
+    return {"codigo": code.strip()}
