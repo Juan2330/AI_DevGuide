@@ -18,7 +18,7 @@ const CodeBlock = ({ code, language = '' }) => {
     const parts = code.split(/(\*\*.*?\*\*)/g);
     
     return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
+      if (part.startsWith('//')) {
         return (
           <span key={i} className="text-purple-400 font-semibold">
             {part.replace(/\*\*/g, '')}
