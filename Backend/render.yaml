@@ -2,7 +2,7 @@ services:
   - name: ai-devguide-backend
     type: web
     env: python
-    region: ohio  # o la región más cercana a tu audiencia
+    region: ohio  
     buildCommand: |
       pip install -r backend/requirements.txt
     startCommand: |

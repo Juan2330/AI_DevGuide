@@ -71,7 +71,6 @@ def predict():
                 "message": "La descripción debe tener al menos 20 caracteres"
             }), 400
 
-        # Paso 1: Obtener recomendación con reintentos
         recomendacion = None
         for _ in range(3):
             recomendacion = modelo_experto(descripcion)
@@ -86,7 +85,6 @@ def predict():
                 "details": recomendacion
             }), 500
 
-        # Paso 2: Generar informe detallado
         informe = modelo_respuesta(descripcion, recomendacion)
         if "error" in informe:
             return jsonify({
@@ -96,7 +94,6 @@ def predict():
                 "details": informe
             }), 500
 
-        # Paso 3: Generar código de ejemplo
         codigo_ejemplo = modelo_codigo(descripcion, recomendacion)
 
         response = {

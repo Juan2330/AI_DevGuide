@@ -1,6 +1,6 @@
 import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
-import { motion } from "framer-motion"; // Mantiene la animación
+import { motion } from "framer-motion"; 
 
 const Button = ({ onClick, text }) => {
   return (

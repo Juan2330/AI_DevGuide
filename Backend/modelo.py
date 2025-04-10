@@ -44,7 +44,6 @@ def generar_respuesta(prompt, system_prompt="", temperature=0.7, cache_key=None)
             return_full_text=False
         )
         
-        # Estimación de tokens (aproximadamente 1.33 tokens por palabra)
         tokens_used = int(len(response.split()) * 1.33)
         monitor.log_request("/predict", True, tokens_used)
         
@@ -57,7 +56,7 @@ def generar_respuesta(prompt, system_prompt="", temperature=0.7, cache_key=None)
         return {"error": str(e)}
 
 def modelo_experto(descripcion):
-    cache_key = f"expert_{descripcion[:100]}"  # Usamos los primeros 100 caracteres para el key
+    cache_key = f"expert_{descripcion[:100]}"  
     
     prompt = f"""
     Como arquitecto de software, genera un JSON con tecnologías esenciales para:
@@ -89,7 +88,6 @@ def modelo_experto(descripcion):
         
     data = limpiar_json(response)
     
-    # Post-procesamiento
     if isinstance(data, dict):
         if "backend" in data and "lenguaje" in data:
             data["backend"] = [tech for tech in data["backend"] if tech != data["lenguaje"]]
@@ -187,7 +185,6 @@ def modelo_codigo(descripcion, recomendacion):
     if isinstance(response, dict) and "error" in response:
         return {"codigo": f"// Error: {response['error']}", "advertencia": "Error generando código"}
     
-    # Limpieza del código
     code = re.sub(r'^```[a-z]*\n?|\n```$', '', response, flags=re.IGNORECASE)
     code = re.sub(r'^(Aquí|Here).*?\n', '', code, flags=re.IGNORECASE)
     return {"codigo": code.strip()}

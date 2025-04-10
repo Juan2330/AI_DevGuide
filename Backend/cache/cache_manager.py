@@ -23,7 +23,6 @@ class CacheManager:
         if not cache_file.exists():
             return None
             
-        # Verificar antigüedad del caché
         file_age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
         if file_age > timedelta(days=Config.MAX_CACHE_AGE_DAYS):
             cache_file.unlink()
