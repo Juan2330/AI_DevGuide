@@ -37,7 +37,7 @@ Recomendador de tecnologías para proyectos de desarrollo. Al enviar una descrip
 🌐 [Portafolio web](https://my-portfolio-git-main-juan-ramirezs-projects-4dd7f1e5.vercel.app)
 
 ## ⚙️ Instalación 
-Este proyecto está diseñado para usarse directamente desde la versión en producción.
+Este proyecto no requiere instalación local para su uso general. Está disponible directamente desde su versión en producción.
 
 ## 📄 Licencia 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
